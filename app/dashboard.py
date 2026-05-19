@@ -24,9 +24,9 @@ async def render_dashboard_page(
     statistics = await _compute_dashboard_statistics(database_session)
     recent_analyses = await _get_recent_analyses(database_session, limit=50)
     return templates.TemplateResponse(
-        "dashboard.html",
-        {
-            "request": request,
+        request=request,
+        name="dashboard.html",
+        context={
             "statistics": statistics,
             "analyses": recent_analyses,
         },

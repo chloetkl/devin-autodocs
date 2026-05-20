@@ -16,7 +16,7 @@ Trigger a full repository scan via the dashboard or API → Devin scans the enti
 
 ## Live Demo
 
-[![Devin Autodocs Demo](https://cdn.loom.com/sessions/thumbnails/e5f6764d2051450abcacf060a152847a-with-play.gif)](https://www.loom.com/share/e5f6764d2051450abcacf060a152847a)
+▶️ [Watch the demo on Loom](https://www.loom.com/share/e5f6764d2051450abcacf060a152847a)
 
 A hosted instance is available at **https://devin-autodocs.onrender.com/dashboard**.
 

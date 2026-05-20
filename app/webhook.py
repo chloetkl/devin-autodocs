@@ -6,6 +6,7 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import application_settings
 from app.database import get_database_session
 from app.devin_client import DevinApiClient, get_devin_api_client
 from app.models import DocumentationDriftAnalysis

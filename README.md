@@ -14,6 +14,12 @@ A GitHub webhook fires on PR creation → the backend creates a Devin session th
 ### Flow 2: Existing Code Audit
 Trigger a full repository scan via the dashboard or API → Devin scans the entire codebase for undocumented or outdated API endpoints → creates a fix PR for all drift found.
 
+## Live Demo
+
+A hosted instance is available at **https://devin-autodocs.onrender.com/dashboard**.
+
+> **Note**: For Devin to create fix PRs, it needs write access to the target repository. If you haven't granted access yet, use **https://github.com/chloetkl/superset** for testing — Devin already has write access there and fix PRs will be created successfully.
+
 ## Prerequisites
 
 - Python 3.11+

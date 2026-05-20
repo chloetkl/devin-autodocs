@@ -6,23 +6,14 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import application_settings
 from app.database import get_database_session
-from app.devin_client import DevinApiClient
+from app.devin_client import DevinApiClient, get_devin_api_client
 from app.models import DocumentationDriftAnalysis
-from app.poller import schedule_session_polling
+from app.poller import schedule_session_polling, update_analysis_with_session
 
 logger = logging.getLogger(__name__)
 
 github_events_router = APIRouter(tags=["GitHub Events"])
-
-
-def _get_devin_api_client() -> DevinApiClient:
-    return DevinApiClient(
-        api_token=application_settings.devin_api_token,
-        organization_id=application_settings.devin_organization_id,
-        base_url=application_settings.devin_api_base_url,
-    )
 
 
 def verify_github_webhook_signature(
@@ -109,9 +100,7 @@ async def _create_devin_session_and_start_polling(
     pull_request_number: int,
     pull_request_title: str,
 ) -> None:
-    from app.database import async_database_session_factory
-
-    devin_client = _get_devin_api_client()
+    devin_client = get_devin_api_client()
     try:
         prompt = DevinApiClient.build_pull_request_analysis_prompt(
             repository_full_name, pull_request_number, pull_request_title
@@ -125,24 +114,12 @@ async def _create_devin_session_and_start_polling(
 
         session_id = session_response.get("session_id", "")
         session_url = devin_client.build_session_web_url(session_id)
-
-        async with async_database_session_factory() as database_session:
-            analysis_record = await database_session.get(DocumentationDriftAnalysis, analysis_id)
-            if analysis_record:
-                analysis_record.devin_session_id = session_id
-                analysis_record.devin_session_url = session_url
-                analysis_record.analysis_status = "analyzing"
-                await database_session.commit()
-
+        await update_analysis_with_session(analysis_id, session_id, session_url)
         await schedule_session_polling(analysis_id, session_id, devin_client)
 
     except Exception:
         logger.exception("Failed to create Devin session for analysis %d", analysis_id)
-        async with async_database_session_factory() as database_session:
-            analysis_record = await database_session.get(DocumentationDriftAnalysis, analysis_id)
-            if analysis_record:
-                analysis_record.analysis_status = "error"
-                analysis_record.error_message = "Failed to create Devin session"
-                await database_session.commit()
+        from app.poller import _mark_analysis_error
+        await _mark_analysis_error(analysis_id, "Failed to create Devin session")
     finally:
         await devin_client.close()

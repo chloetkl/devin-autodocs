@@ -45,7 +45,8 @@ async def schedule_session_polling(
                 await _process_completed_session(analysis_id, session_details)
                 return
 
-        await _mark_analysis_timed_out(analysis_id)
+        await _mark_analysis_error(analysis_id, "Session polling timed out")
+        logger.warning("Analysis %d timed out", analysis_id)
 
     except Exception:
         logger.exception("Polling error for analysis %d, session %s", analysis_id, session_id)
@@ -106,18 +107,6 @@ async def _process_completed_session(analysis_id: int, session_details: dict) ->
         )
 
 
-async def _mark_analysis_timed_out(analysis_id: int) -> None:
-    from app.database import async_database_session_factory
-
-    async with async_database_session_factory() as database_session:
-        analysis_record = await database_session.get(DocumentationDriftAnalysis, analysis_id)
-        if analysis_record:
-            analysis_record.analysis_status = "error"
-            analysis_record.error_message = "Session polling timed out"
-            await database_session.commit()
-    logger.warning("Analysis %d timed out", analysis_id)
-
-
 async def _mark_analysis_error(analysis_id: int, error_message: str) -> None:
     from app.database import async_database_session_factory
 
@@ -126,4 +115,19 @@ async def _mark_analysis_error(analysis_id: int, error_message: str) -> None:
         if analysis_record:
             analysis_record.analysis_status = "error"
             analysis_record.error_message = error_message
+            await database_session.commit()
+
+
+async def update_analysis_with_session(
+    analysis_id: int, session_id: str, session_url: str
+) -> None:
+    """Persist the Devin session ID/URL on an analysis record and mark it as analyzing."""
+    from app.database import async_database_session_factory
+
+    async with async_database_session_factory() as database_session:
+        analysis_record = await database_session.get(DocumentationDriftAnalysis, analysis_id)
+        if analysis_record:
+            analysis_record.devin_session_id = session_id
+            analysis_record.devin_session_url = session_url
+            analysis_record.analysis_status = "analyzing"
             await database_session.commit()

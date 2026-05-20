@@ -3,293 +3,331 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>API Doc Drift Detector — Dashboard</title>
+    <title>Devin Autodocs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['SF Mono', 'Fira Code', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        :root {
-            --color-bg: #0f1117;
-            --color-surface: #1a1d27;
-            --color-border: #2a2d3a;
-            --color-text: #e1e4eb;
-            --color-text-muted: #8b8fa3;
-            --color-green: #22c55e;
-            --color-green-bg: #162312;
-            --color-blue: #3b82f6;
-            --color-blue-bg: #111827;
-            --color-orange: #f59e0b;
-            --color-orange-bg: #1c1608;
-            --color-red: #ef4444;
-            --color-red-bg: #1f1215;
-            --color-purple: #a78bfa;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--color-bg);
-            color: var(--color-text);
-            line-height: 1.5;
-        }
-        .container { max-width: 1280px; margin: 0 auto; padding: 24px; }
-        header {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 32px; padding-bottom: 16px; border-bottom: 1px solid var(--color-border);
-        }
-        header h1 { font-size: 22px; font-weight: 600; }
-        header .subtitle { color: var(--color-text-muted); font-size: 14px; }
-        .stats-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px; margin-bottom: 32px;
-        }
-        .stat-card {
-            background: var(--color-surface); border: 1px solid var(--color-border);
-            border-radius: 10px; padding: 20px;
-        }
-        .stat-card .label { font-size: 13px; color: var(--color-text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .stat-card .value { font-size: 32px; font-weight: 700; }
-        .stat-card.green .value { color: var(--color-green); }
-        .stat-card.green { background: var(--color-green-bg); border-color: #1a3a1a; }
-        .stat-card.blue .value { color: var(--color-blue); }
-        .stat-card.blue { background: var(--color-blue-bg); border-color: #1a2a4a; }
-        .stat-card.orange .value { color: var(--color-orange); }
-        .stat-card.orange { background: var(--color-orange-bg); border-color: #3a2a0a; }
-        .stat-card.red .value { color: var(--color-red); }
-        .stat-card.red { background: var(--color-red-bg); border-color: #3a1a1a; }
-
-        .section { margin-bottom: 32px; }
-        .section h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
-
-        .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 32px; }
-        .metric-card {
-            background: var(--color-surface); border: 1px solid var(--color-border);
-            border-radius: 8px; padding: 16px;
-        }
-        .metric-card .label { font-size: 12px; color: var(--color-text-muted); margin-bottom: 2px; }
-        .metric-card .value { font-size: 22px; font-weight: 600; }
-
-        table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        th { text-align: left; padding: 10px 12px; color: var(--color-text-muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--color-border); }
-        td { padding: 10px 12px; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
-        tr:hover { background: rgba(255,255,255,0.02); }
-
-        .badge {
-            display: inline-block; padding: 2px 8px; border-radius: 4px;
-            font-size: 12px; font-weight: 500;
-        }
-        .badge-pending { background: #1e293b; color: #94a3b8; }
-        .badge-analyzing { background: #172554; color: #60a5fa; }
-        .badge-no-drift { background: #14532d; color: #4ade80; }
-        .badge-drift-detected { background: #422006; color: #fbbf24; }
-        .badge-fix-pr { background: #14532d; color: #4ade80; }
-        .badge-error { background: #450a0a; color: #f87171; }
-        .badge-pr-webhook { background: #1e1b4b; color: #a78bfa; }
-        .badge-audit-scan { background: #0c2d48; color: #38bdf8; }
-        .badge-manual { background: #1c1917; color: #a8a29e; }
-
-        a { color: var(--color-blue); text-decoration: none; }
-        a:hover { text-decoration: underline; }
-
-        .empty-state { text-align: center; padding: 60px 20px; color: var(--color-text-muted); }
-        .empty-state p { font-size: 15px; }
-
-        .refresh-btn {
-            background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);
-            padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
-        }
-        .refresh-btn:hover { background: var(--color-border); }
-
-        .scan-form {
-            display: flex; gap: 8px; margin-bottom: 24px;
-        }
-        .scan-form input {
-            flex: 1; background: var(--color-surface); border: 1px solid var(--color-border);
-            color: var(--color-text); padding: 8px 12px; border-radius: 6px; font-size: 14px;
-        }
-        .scan-form input::placeholder { color: var(--color-text-muted); }
-        .scan-form button {
-            background: var(--color-blue); color: white; border: none;
-            padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;
-        }
-        .scan-form button:hover { opacity: 0.9; }
+        /* Active stat card highlight */
+        .stat-card.active { outline: 2px solid currentColor; outline-offset: 2px; }
+        .row-hidden { display: none; }
     </style>
 </head>
-<body>
-    <div class="container">
-        <header>
-            <div>
-                <h1>API Doc Drift Detector</h1>
-                <div class="subtitle">Autonomous documentation drift detection powered by Devin AI</div>
-            </div>
-            <button class="refresh-btn" onclick="location.reload()">Refresh</button>
-        </header>
+<body class="bg-white text-gray-900 antialiased min-h-screen">
 
-        <div class="stats-grid">
-            <div class="stat-card green">
-                <div class="label">Completed</div>
-                <div class="value">{{ statistics.completed_analyses }}</div>
+    <!-- Header -->
+    <header class="border-b border-gray-200 bg-white sticky top-0 z-10">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold"
+                     style="background: #3969CA;">D</div>
+                <span class="font-semibold text-lg tracking-tight">Devin <span style="color:#3969CA;">Autodocs</span></span>
             </div>
-            <div class="stat-card blue">
-                <div class="label">Open</div>
-                <div class="value">{{ statistics.open_analyses }}</div>
-            </div>
-            <div class="stat-card orange">
-                <div class="label">Unresolved</div>
-                <div class="value">{{ statistics.unresolved_analyses }}</div>
-            </div>
-            <div class="stat-card red">
-                <div class="label">Errors</div>
-                <div class="value">{{ statistics.error_count }}</div>
+            <div class="flex items-center gap-3">
+                <span class="text-xs px-2.5 py-1 rounded-full border font-medium" style="color:#3969CA; border-color:#3969CA; background:#f0f4ff;">
+                    Powered by Devin AI
+                </span>
+                <a href="/setup" class="text-sm text-gray-500 hover:text-gray-900 transition-colors">Setup Guide</a>
+                <button onclick="location.reload()"
+                        class="text-sm px-3 py-1.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+                    ↻ Refresh
+                </button>
             </div>
         </div>
+    </header>
 
-        <div class="section">
-            <h2>Failure Metrics</h2>
-            <div class="metrics-grid">
-                <div class="metric-card">
-                    <div class="label">Error Rate</div>
-                    <div class="value">{{ statistics.error_rate_percentage }}%</div>
+    <main class="max-w-6xl mx-auto px-6 py-6">
+
+        <!-- Metrics panel + How Devin Works side by side -->
+        <div class="grid grid-cols-4 gap-4 mb-5">
+
+        <!-- Metrics panel (2/3): header + stat cards + secondary metrics -->
+        <div class="col-span-3 rounded-xl border border-gray-100 bg-white shadow-sm p-5">
+            <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">Devin Autodocs</h2>
+
+        <!-- Stat cards -->
+        <div class="grid grid-cols-4 gap-3 mb-4">
+
+            <div class="stat-card cursor-pointer rounded-xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all border-l-4"
+                 style="border-left-color:#21C19A;"
+                 data-filter="all_clear" onclick="filterByCard(this,'all_clear')">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="text-sm">✅</span>
+                    <span class="text-xs font-semibold uppercase tracking-widest text-gray-400">All Clear</span>
                 </div>
-                <div class="metric-card">
-                    <div class="label">Timeout Rate</div>
-                    <div class="value">{{ statistics.timeout_rate_percentage }}%</div>
+                <div class="text-4xl font-bold font-mono mb-1" style="color:#21C19A;">{{ statistics.all_clear_count }}</div>
+                <div class="text-xs text-gray-400">Devin found no documentation drift</div>
+            </div>
+
+            <div class="stat-card cursor-pointer rounded-xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all border-l-4"
+                 style="border-left-color:#3969CA;"
+                 data-filter="fix_pr_ready" onclick="filterByCard(this,'fix_pr_ready')">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="text-sm">🔀</span>
+                    <span class="text-xs font-semibold uppercase tracking-widest text-gray-400">Fix PR Ready</span>
                 </div>
-                <div class="metric-card">
-                    <div class="label">Avg Resolution</div>
-                    <div class="value">{{ statistics.average_resolution_minutes }}m</div>
+                <div class="text-4xl font-bold font-mono mb-1" style="color:#3969CA;">{{ statistics.fix_pr_ready_count }}</div>
+                <div class="text-xs text-gray-400">Devin opened a PR fix - over to you for review</div>
+            </div>
+
+            <div class="stat-card cursor-pointer rounded-xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all border-l-4"
+                 style="border-left-color:#0294DE;"
+                 data-filter="open" onclick="filterByCard(this,'open')">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="text-sm">⚙️</span>
+                    <span class="text-xs font-semibold uppercase tracking-widest text-gray-400">Devin is working</span>
                 </div>
-                <div class="metric-card">
-                    <div class="label">Drift Detected</div>
-                    <div class="value">{{ statistics.total_drift_detected }}</div>
+                <div class="text-4xl font-bold font-mono mb-1" style="color:#0294DE;">{{ statistics.open_analyses }}</div>
+                <div class="text-xs text-gray-400">Devin is checking for documentation drift</div>
+            </div>
+
+            <div class="stat-card cursor-pointer rounded-xl border border-gray-100 bg-white p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all border-l-4 border-l-red-400"
+                 data-filter="error" onclick="filterByCard(this,'error')">
+                <div class="flex items-center gap-2 mb-3">
+                    <span class="text-sm">🚨</span>
+                    <span class="text-xs font-semibold uppercase tracking-widest text-gray-400">Devin needs help</span>
                 </div>
-                <div class="metric-card">
-                    <div class="label">Fix PRs Created</div>
-                    <div class="value">{{ statistics.total_fix_prs_created }}</div>
+                <div class="text-4xl font-bold font-mono mb-1 text-red-500">{{ statistics.error_count }}</div>
+                <div class="text-xs text-gray-400">Errors requiring your review</div>
+            </div>
+
+        </div>
+
+            <!-- Secondary metrics -->
+            <div class="grid grid-cols-3 gap-4 pt-4 border-t border-gray-100">
+                <div>
+                    <div class="text-xs text-gray-400 mb-1">Avg Resolution</div>
+                    <div class="text-2xl font-bold font-mono text-gray-800">{{ statistics.average_resolution_minutes }}m</div>
                 </div>
-                <div class="metric-card">
-                    <div class="label">Total Analyses</div>
-                    <div class="value">{{ statistics.total_analyses }}</div>
+                <div>
+                    <div class="text-xs text-gray-400 mb-1">Error Rate</div>
+                    <div class="text-2xl font-bold font-mono text-gray-800">{{ statistics.error_rate_percentage }}%</div>
+                </div>
+                <div>
+                    <div class="text-xs text-gray-400 mb-1">Total Analyses</div>
+                    <div class="text-2xl font-bold font-mono text-gray-800">{{ statistics.total_analyses }}</div>
                 </div>
             </div>
+
+        </div><!-- end metrics panel -->
+
+        <!-- How Devin works (1/3) -->
+        <div class="col-span-1 rounded-xl border border-gray-100 bg-white shadow-sm p-5">
+                <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">How Devin Works</h2>
+                <div class="flex flex-col gap-3">
+                    <div class="flex items-start gap-2 mt-3">
+                        <span class="text-sm mt-0.5">🔗</span>
+                        <div>
+                            <div class="text-xs font-semibold text-gray-700 mb-0.5">GitHub Webhook</div>
+                            <p class="text-xs text-gray-400 mb-1">Monitors every PR automatically.</p>
+                            <a href="/setup" class="text-xs font-medium hover:underline" style="color:#3969CA;">Setup guide →</a>
+                        </div>
+                    </div>
+                    <div class="w-full h-px bg-gray-100"></div>
+                    <div class="flex items-start gap-2">
+                        <span class="text-sm mt-0.5">🔍</span>
+                        <div class="flex-1">
+                            <div class="text-xs font-semibold text-gray-700 mb-0.5">Repository Audit</div>
+                            <p class="text-xs text-gray-400 mb-2">Trigger a one-off full scan.</p>
+                            <form onsubmit="triggerScan(event)" class="flex flex-col gap-1.5">
+                                <input id="repo-input" type="text" placeholder="owner/repo" required
+                                       class="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:border-transparent">
+                                <button type="submit" class="w-full text-xs px-3 py-1.5 rounded-lg text-white font-medium hover:opacity-90" style="background:#3969CA;">
+                                    ⚡ Scan with Devin
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
-        <div class="section">
-            <h2>Trigger Repository Audit</h2>
-            <form class="scan-form" onsubmit="triggerScan(event)">
-                <input type="text" id="repo-input" placeholder="owner/repo (e.g. myorg/my-api)" required>
-                <button type="submit">Scan Repository</button>
-            </form>
-        </div>
+        <!-- Analysis history -->
+        <div>
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-widest">Analysis History</h2>
+                <!-- Active filter chip -->
+                <div id="filter-bar" class="hidden items-center gap-2 text-sm">
+                    <span class="text-gray-400">Filtered by</span>
+                    <span id="filter-chip" class="px-2.5 py-0.5 rounded-full text-xs font-medium border"></span>
+                    <button onclick="clearFilter()" class="text-gray-400 hover:text-gray-700 transition-colors">✕ Clear</button>
+                </div>
+            </div>
 
-        <div class="section">
-            <h2>Analysis History</h2>
             {% if analyses %}
-            <table>
-                <thead>
-                    <tr>
-                        <th>Repository</th>
-                        <th>PR</th>
-                        <th>Trigger</th>
-                        <th>Status</th>
-                        <th>Devin Session</th>
-                        <th>Fix PR</th>
-                        <th>Created</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for analysis in analyses %}
-                    <tr>
-                        <td>
-                            <a href="https://github.com/{{ analysis.repository_full_name }}" target="_blank">
-                                {{ analysis.repository_full_name }}
-                            </a>
-                        </td>
-                        <td>
-                            {% if analysis.pull_request_number %}
-                            <a href="{{ analysis.pull_request_url }}" target="_blank">
-                                #{{ analysis.pull_request_number }}
-                            </a>
-                            <span style="color: var(--color-text-muted); font-size: 12px;">
-                                {{ analysis.pull_request_title[:40] }}{% if analysis.pull_request_title and analysis.pull_request_title|length > 40 %}...{% endif %}
-                            </span>
-                            {% else %}
-                            <span style="color: var(--color-text-muted);">Full Scan</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if analysis.trigger_type == "pull_request_webhook" %}
-                            <span class="badge badge-pr-webhook">PR Webhook</span>
-                            {% elif analysis.trigger_type == "repository_audit_scan" %}
-                            <span class="badge badge-audit-scan">Audit Scan</span>
-                            {% else %}
-                            <span class="badge badge-manual">Manual</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if analysis.analysis_status == "pending" %}
-                            <span class="badge badge-pending">Pending</span>
-                            {% elif analysis.analysis_status == "analyzing" %}
-                            <span class="badge badge-analyzing">Analyzing</span>
-                            {% elif analysis.analysis_status == "no_drift_detected" %}
-                            <span class="badge badge-no-drift">No Drift</span>
-                            {% elif analysis.analysis_status == "drift_detected" %}
-                            <span class="badge badge-drift-detected">Drift Detected</span>
-                            {% elif analysis.analysis_status == "fix_pr_created" %}
-                            <span class="badge badge-fix-pr">Fix PR Created</span>
-                            {% elif analysis.analysis_status == "error" %}
-                            <span class="badge badge-error" title="{{ analysis.error_message or '' }}">Error</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if analysis.devin_session_url %}
-                            <a href="{{ analysis.devin_session_url }}" target="_blank">View Session</a>
-                            {% else %}
-                            <span style="color: var(--color-text-muted);">—</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if analysis.fix_pull_request_url %}
-                            <a href="{{ analysis.fix_pull_request_url }}" target="_blank">View PR</a>
-                            {% else %}
-                            <span style="color: var(--color-text-muted);">—</span>
-                            {% endif %}
-                        </td>
-                        <td style="color: var(--color-text-muted); font-size: 12px;">
-                            {{ analysis.created_at[:16] if analysis.created_at else '—' }}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="rounded-xl border border-gray-200 overflow-hidden">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-gray-200">
+                            <th class="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Repository</th>
+                            <th class="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">PR</th>
+                            <th class="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Trigger</th>
+                            <th class="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                            <th class="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Devin Session</th>
+                            <th class="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Fix PR</th>
+                            <th class="text-left px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Created</th>
+                        </tr>
+                    </thead>
+                    <tbody id="analysis-tbody" class="divide-y divide-gray-100">
+                        {% for analysis in analyses %}
+                        <tr data-status="{{ analysis.analysis_status }}" class="hover:bg-gray-50 transition-colors">
+
+                            <td class="px-4 py-3">
+                                <a href="https://github.com/{{ analysis.repository_full_name }}" target="_blank"
+                                   class="font-medium text-gray-800 hover:underline" style="color:#3969CA;">
+                                    {{ analysis.repository_full_name }}
+                                </a>
+                            </td>
+
+                            <td class="px-4 py-3 text-gray-600">
+                                {% if analysis.pull_request_number %}
+                                <a href="{{ analysis.pull_request_url }}" target="_blank"
+                                   class="font-medium hover:underline" style="color:#0294DE;">#{{ analysis.pull_request_number }}</a>
+                                <span class="ml-1 text-xs text-gray-400">
+                                    {{ analysis.pull_request_title[:35] }}{% if analysis.pull_request_title and analysis.pull_request_title|length > 35 %}…{% endif %}
+                                </span>
+                                {% else %}
+                                <span class="text-gray-400">Full Scan</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="px-4 py-3">
+                                {% if analysis.trigger_type == "pull_request_webhook" %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100">PR Webhook</span>
+                                {% elif analysis.trigger_type == "repository_audit_scan" %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">Audit Scan</span>
+                                {% else %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">Manual</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="px-4 py-3">
+                                {% if analysis.analysis_status == "pending" %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">⏳ Queued</span>
+                                {% elif analysis.analysis_status == "analyzing" or analysis.analysis_status == "drift_detected" %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-600 border border-blue-100">⚙️ Devin is working</span>
+                                {% elif analysis.analysis_status == "no_drift_detected" %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-100">✅ All Clear</span>
+                                {% elif analysis.analysis_status == "fix_pr_created" %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 border border-indigo-100" style="color:#3969CA;">🔀 Fix PR Ready</span>
+                                {% elif analysis.analysis_status == "error" %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-red-50 text-red-600 border border-red-100" title="{{ analysis.error_message or '' }}">🚨 Devin needs help</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="px-4 py-3">
+                                {% if analysis.devin_session_url %}
+                                <a href="{{ analysis.devin_session_url }}" target="_blank"
+                                   class="text-sm font-medium hover:underline" style="color:#0294DE;">
+                                    View Session →
+                                </a>
+                                {% else %}
+                                <span class="text-gray-300">—</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="px-4 py-3">
+                                {% if analysis.fix_pull_request_url %}
+                                <a href="{{ analysis.fix_pull_request_url }}" target="_blank"
+                                   class="text-sm font-medium hover:underline" style="color:#21C19A;">
+                                    View PR →
+                                </a>
+                                {% else %}
+                                <span class="text-gray-300">—</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="px-4 py-3 text-xs text-gray-400 font-mono">
+                                {{ analysis.created_at[:16] if analysis.created_at else '—' }}
+                            </td>
+
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
             {% else %}
-            <div class="empty-state">
-                <p>No analyses yet. Configure a GitHub webhook or trigger a repository scan above.</p>
+            <div class="rounded-xl border border-gray-200 py-16 text-center text-gray-400">
+                <div class="text-3xl mb-3">⚡</div>
+                <p class="text-sm">No analyses yet. Configure a GitHub webhook or trigger a repository scan above.</p>
             </div>
             {% endif %}
         </div>
-    </div>
+
+    </main>
 
     <script>
+        const STATUS_GROUPS = {
+            all_clear:    ["no_drift_detected"],
+            fix_pr_ready: ["fix_pr_created"],
+            open:         ["pending", "analyzing", "drift_detected"],
+            error:        ["error"],
+        };
+        const CHIP_CONFIG = {
+            all_clear:    { label: "All Clear",              bg: "#f0fdf4", color: "#21C19A", border: "#bbf7d0" },
+            fix_pr_ready: { label: "Fix PR Ready",           bg: "#f0f4ff", color: "#3969CA", border: "#c7d2fe" },
+            open:         { label: "Devin is working",  bg: "#f0f9ff", color: "#0294DE", border: "#bae6fd" },
+            error:        { label: "Devin needs help",  bg: "#fef2f2", color: "#ef4444", border: "#fecaca" },
+        };
+
+        let activeFilter = null;
+
+        function filterByCard(card, group) {
+            if (activeFilter === group) { clearFilter(); return; }
+            activeFilter = group;
+
+            document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+
+            const cfg = CHIP_CONFIG[group];
+            const bar = document.getElementById('filter-bar');
+            const chip = document.getElementById('filter-chip');
+            bar.classList.remove('hidden');
+            bar.classList.add('flex');
+            chip.textContent = cfg.label;
+            chip.style.cssText = `background:${cfg.bg}; color:${cfg.color}; border-color:${cfg.border};`;
+
+            const allowed = STATUS_GROUPS[group];
+            document.querySelectorAll('#analysis-tbody tr').forEach(row => {
+                row.classList.toggle('row-hidden', !allowed.includes(row.dataset.status));
+            });
+        }
+
+        function clearFilter() {
+            activeFilter = null;
+            document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+            const bar = document.getElementById('filter-bar');
+            bar.classList.add('hidden');
+            bar.classList.remove('flex');
+            document.querySelectorAll('#analysis-tbody tr').forEach(row => row.classList.remove('row-hidden'));
+        }
+
         async function triggerScan(event) {
             event.preventDefault();
-            const repoInput = document.getElementById('repo-input');
-            const repoName = repoInput.value.trim();
+            const input = document.getElementById('repo-input');
+            const repoName = input.value.trim();
             if (!repoName) return;
-
             try {
-                const response = await fetch('/api/repo/analyses', {
+                const res = await fetch('/api/repo/analyses', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ repository_full_name: repoName }),
                 });
-                if (response.ok) {
-                    repoInput.value = '';
-                    location.reload();
-                } else {
-                    const error = await response.json();
-                    alert('Error: ' + (error.detail || 'Failed to trigger scan'));
-                }
-            } catch (err) {
-                alert('Network error: ' + err.message);
-            }
+                if (res.ok) { input.value = ''; location.reload(); }
+                else { const e = await res.json(); alert('Error: ' + (e.detail || 'Failed to trigger scan')); }
+            } catch (err) { alert('Network error: ' + err.message); }
         }
     </script>
+
 </body>
 </html>

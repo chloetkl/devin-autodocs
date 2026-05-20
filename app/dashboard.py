@@ -2,10 +2,12 @@ import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import application_settings
 from app.database import get_database_session
 from app.models import DocumentationDriftAnalysis
 
@@ -14,6 +16,45 @@ logger = logging.getLogger(__name__)
 dashboard_router = APIRouter(tags=["Dashboard"])
 
 templates = Jinja2Templates(directory="templates")
+
+
+def _check_configuration() -> dict[str, bool]:
+    """Return which required env vars are configured (present and non-empty)."""
+    return {
+        "devin_api_token": bool(application_settings.devin_api_token),
+        "devin_organization_id": bool(application_settings.devin_organization_id),
+        "github_webhook_secret": bool(application_settings.github_webhook_secret),
+    }
+
+
+@dashboard_router.get("/")
+async def root(request: Request):
+    """Redirect to dashboard if fully configured, otherwise show setup page."""
+    config = _check_configuration()
+    if all(config.values()):
+        return RedirectResponse(url="/dashboard")
+    return templates.TemplateResponse(
+        request=request,
+        name="setup.html",
+        context={
+            "config": config,
+            "webhook_url": str(request.base_url).rstrip("/") + "/api/github/events",
+        },
+    )
+
+
+@dashboard_router.get("/setup")
+async def render_setup_page(request: Request):
+    """Setup/onboarding guide — always accessible via nav link."""
+    config = _check_configuration()
+    return templates.TemplateResponse(
+        request=request,
+        name="setup.html",
+        context={
+            "config": config,
+            "webhook_url": str(request.base_url).rstrip("/") + "/api/github/events",
+        },
+    )
 
 
 @dashboard_router.get("/dashboard")
@@ -89,40 +130,33 @@ async def retry_failed_analysis(
 
 
 async def _compute_dashboard_statistics(database_session: AsyncSession) -> dict:
-    completed_statuses = ("no_drift_detected", "fix_pr_created")
-    open_statuses = ("pending", "analyzing")
-    unresolved_statuses = ("drift_detected",)
-    error_statuses = ("error",)
-
+    """Aggregate analysis counts and rates for the dashboard and /api/statistics endpoint."""
+    # "drift_detected" is a transient state while Devin works toward a fix PR; treat as open
     total_count = await _count_analyses_by_statuses(database_session, None)
-    completed_count = await _count_analyses_by_statuses(database_session, completed_statuses)
-    open_count = await _count_analyses_by_statuses(database_session, open_statuses)
-    unresolved_count = await _count_analyses_by_statuses(database_session, unresolved_statuses)
-    error_count = await _count_analyses_by_statuses(database_session, error_statuses)
+    all_clear_count = await _count_analyses_by_statuses(database_session, ("no_drift_detected",))
+    fix_pr_ready_count = await _count_analyses_by_statuses(database_session, ("fix_pr_created",))
+    open_count = await _count_analyses_by_statuses(
+        database_session, ("pending", "analyzing", "drift_detected")
+    )
+    error_count = await _count_analyses_by_statuses(database_session, ("error",))
 
     drift_found_count = await _count_where_drift_detected(database_session)
-    fix_prs_created_count = await _count_analyses_by_statuses(
-        database_session, ("fix_pr_created",)
-    )
-
     error_rate = (error_count / total_count * 100) if total_count > 0 else 0.0
-
     average_resolution_minutes = await _compute_average_resolution_minutes(database_session)
-
     timeout_count = await _count_timeout_errors(database_session)
     timeout_rate = (timeout_count / total_count * 100) if total_count > 0 else 0.0
 
     return {
         "total_analyses": total_count,
-        "completed_analyses": completed_count,
+        "all_clear_count": all_clear_count,
+        "fix_pr_ready_count": fix_pr_ready_count,
         "open_analyses": open_count,
-        "unresolved_analyses": unresolved_count,
         "error_count": error_count,
         "error_rate_percentage": round(error_rate, 1),
         "timeout_count": timeout_count,
         "timeout_rate_percentage": round(timeout_rate, 1),
         "total_drift_detected": drift_found_count,
-        "total_fix_prs_created": fix_prs_created_count,
+        "total_fix_prs_created": fix_pr_ready_count,
         "average_resolution_minutes": round(average_resolution_minutes, 1),
     }
 
@@ -130,6 +164,7 @@ async def _compute_dashboard_statistics(database_session: AsyncSession) -> dict:
 async def _count_analyses_by_statuses(
     database_session: AsyncSession, statuses: tuple[str, ...] | None
 ) -> int:
+    """Count analyses matching the given statuses, or all analyses if statuses is None."""
     query = select(func.count(DocumentationDriftAnalysis.id))
     if statuses is not None:
         query = query.where(DocumentationDriftAnalysis.analysis_status.in_(statuses))
@@ -138,6 +173,7 @@ async def _count_analyses_by_statuses(
 
 
 async def _count_where_drift_detected(database_session: AsyncSession) -> int:
+    """Count analyses where the drift_detected flag is True (regardless of current status)."""
     query = select(func.count(DocumentationDriftAnalysis.id)).where(
         DocumentationDriftAnalysis.drift_detected.is_(True)
     )
@@ -146,6 +182,7 @@ async def _count_where_drift_detected(database_session: AsyncSession) -> int:
 
 
 async def _count_timeout_errors(database_session: AsyncSession) -> int:
+    """Count analyses that errored due to session polling timeout."""
     query = select(func.count(DocumentationDriftAnalysis.id)).where(
         DocumentationDriftAnalysis.analysis_status == "error",
         DocumentationDriftAnalysis.error_message.contains("timed out"),
@@ -155,6 +192,7 @@ async def _count_timeout_errors(database_session: AsyncSession) -> int:
 
 
 async def _compute_average_resolution_minutes(database_session: AsyncSession) -> float:
+    """Return the mean time in minutes from analysis creation to a terminal status."""
     terminal_statuses = ("no_drift_detected", "fix_pr_created", "drift_detected", "error")
     query = select(
         DocumentationDriftAnalysis.created_at,
@@ -180,6 +218,7 @@ async def _compute_average_resolution_minutes(database_session: AsyncSession) ->
 async def _get_recent_analyses(
     database_session: AsyncSession, limit: int = 50
 ) -> list[dict]:
+    """Fetch the most recent analyses, sorted newest-first, serialized as dicts."""
     query = (
         select(DocumentationDriftAnalysis)
         .order_by(DocumentationDriftAnalysis.created_at.desc())
@@ -191,6 +230,7 @@ async def _get_recent_analyses(
 
 
 def _serialize_analysis_record(analysis: DocumentationDriftAnalysis) -> dict:
+    """Convert a DocumentationDriftAnalysis ORM record to a JSON-serializable dict."""
     endpoints_changed = None
     if analysis.endpoints_changed_json:
         try:

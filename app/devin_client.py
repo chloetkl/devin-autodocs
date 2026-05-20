@@ -2,7 +2,19 @@ import logging
 
 import httpx
 
+from app.config import application_settings
+
 logger = logging.getLogger(__name__)
+
+
+def get_devin_api_client() -> "DevinApiClient":
+    """Construct a DevinApiClient from the current application settings."""
+    return DevinApiClient(
+        api_token=application_settings.devin_api_token,
+        organization_id=application_settings.devin_organization_id,
+        base_url=application_settings.devin_api_base_url,
+    )
+
 
 DOCUMENTATION_DRIFT_STRUCTURED_OUTPUT_SCHEMA = {
     "type": "object",
@@ -51,6 +63,8 @@ DOCUMENTATION_DRIFT_STRUCTURED_OUTPUT_SCHEMA = {
 
 
 class DevinApiClient:
+    """Async HTTP client for the Devin AI API (session creation and status polling)."""
+
     def __init__(self, api_token: str, organization_id: str, base_url: str) -> None:
         self._api_token = api_token
         self._organization_id = organization_id
@@ -98,6 +112,7 @@ class DevinApiClient:
         return f"https://app.devin.ai/sessions/{session_id}"
 
     async def close(self) -> None:
+        """Close the underlying HTTP client. Always call this when done with the client."""
         await self._http_client.aclose()
 
     @staticmethod

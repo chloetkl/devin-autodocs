@@ -14,6 +14,21 @@ A GitHub webhook fires on PR creation → the backend creates a Devin session th
 ### Flow 2: Existing Code Audit
 Trigger a full repository scan via the dashboard or API → Devin scans the entire codebase for undocumented or outdated API endpoints → creates a fix PR for all drift found.
 
+## Live Demo
+
+[![Devin Autodocs Demo](https://cdn.loom.com/sessions/thumbnails/e5f6764d2051450abcacf060a152847a-with-play.gif)](https://www.loom.com/share/e5f6764d2051450abcacf060a152847a)
+
+A hosted instance is available at **https://devin-autodocs.onrender.com/dashboard**.
+
+> **Note**: For Devin to create fix PRs, it needs write access to the target repository. If you haven't granted access yet, use **https://github.com/chloetkl/superset** for testing — Devin already has write access there and fix PRs will be created successfully.
+
+## Prerequisites
+
+- Python 3.11+
+- A [Devin API token](https://app.devin.ai/settings/api-keys) (`DEVIN_API_TOKEN`)
+- Your Devin organization ID — found in the Devin dashboard URL: `app.devin.ai/o/<org-id>` (`DEVIN_ORGANIZATION_ID`)
+- A GitHub repository you want to monitor
+
 ## Quick Start
 
 ### Docker (recommended)
@@ -39,6 +54,57 @@ export GITHUB_WEBHOOK_SECRET=your-secret
 
 uvicorn app.main:app --reload
 ```
+
+## Simulating the Workflow
+
+You don't need a real GitHub webhook to test the full flow. Use `curl` to simulate each trigger directly.
+
+### Simulate a PR webhook (Flow 1)
+
+```bash
+curl -X POST http://localhost:8000/api/github/events \
+  -H "Content-Type: application/json" \
+  -H "X-GitHub-Event: pull_request" \
+  -d '{
+    "action": "opened",
+    "pull_request": {
+      "number": 42,
+      "title": "Add new /users endpoint",
+      "html_url": "https://github.com/your-org/your-repo/pull/42",
+      "user": {"login": "your-github-username"}
+    },
+    "repository": {
+      "full_name": "your-org/your-repo"
+    }
+  }'
+```
+
+> If `GITHUB_WEBHOOK_SECRET` is set, omit it from your `.env` when testing locally to skip signature verification, or sign the payload manually.
+
+### Trigger a full repository audit (Flow 2)
+
+```bash
+curl -X POST http://localhost:8000/api/repo/analyses \
+  -H "Content-Type: application/json" \
+  -d '{"repository_full_name": "your-org/your-repo"}'
+```
+
+### Check analysis status
+
+```bash
+# List all analyses
+curl http://localhost:8000/api/analyses
+
+# Get a specific analysis
+curl http://localhost:8000/api/analyses/1
+
+# Retry a failed analysis
+curl -X POST http://localhost:8000/api/analyses/1/retry
+```
+
+### Watch it on the dashboard
+
+Open `http://localhost:8000/dashboard` — the analysis will appear immediately as **Devin is working.** and update to **All Clear**, **Fix PR Ready**, or **Devin needs help** once Devin finishes.
 
 ## Configuration
 

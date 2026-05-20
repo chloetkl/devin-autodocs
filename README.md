@@ -44,10 +44,11 @@ uvicorn app.main:app --reload
 |----------|-------------|----------|
 | `DEVIN_API_TOKEN` | Devin API v3 token | Yes |
 | `DEVIN_ORGANIZATION_ID` | Devin organization ID (org-xxx) | Yes |
-| `GITHUB_WEBHOOK_SECRET` | GitHub webhook secret for signature verification | Yes |
+| `DEVIN_API_BASE_URL` | Base URL for the Devin API | No (default: `https://api.devin.ai`) |
+| `GITHUB_WEBHOOK_SECRET` | GitHub webhook secret for signature verification | No (signature verification is skipped if not set) |
 | `DATABASE_URL` | SQLite connection string | No (default: `sqlite+aiosqlite:///./data/autodocs.db`) |
-| `SESSION_POLL_INTERVAL_SECONDS` | How often to poll Devin session status | No (default: 30) |
-| `SESSION_POLL_TIMEOUT_SECONDS` | Max time to wait for a session | No (default: 1800) |
+| `SESSION_POLL_INTERVAL_SECONDS` | How often to poll Devin session status (seconds) | No (default: 30) |
+| `SESSION_POLL_TIMEOUT_SECONDS` | Max time to wait for a session (seconds) | No (default: 1800) |
 
 ## Setting Up the GitHub Webhook
 
@@ -60,16 +61,165 @@ uvicorn app.main:app --reload
 
 ## API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/github/events` | GitHub webhook receiver (PR creation triggers drift analysis) |
-| `POST` | `/api/repo/analyses` | Trigger a full repository documentation audit scan |
-| `GET` | `/api/analyses` | List all drift analyses (paginated) |
-| `GET` | `/api/analyses/{id}` | Get details of a specific analysis |
-| `POST` | `/api/analyses/{id}/retry` | Retry a failed analysis |
-| `GET` | `/api/statistics` | Dashboard statistics as JSON |
-| `GET` | `/dashboard` | Web dashboard |
-| `GET` | `/health` | Health check |
+### `GET /health`
+
+Health check endpoint.
+
+**Response** `200`:
+```json
+{"status": "healthy", "service": "api-documentation-drift-detector"}
+```
+
+---
+
+### `POST /api/github/events`
+
+GitHub webhook receiver. Listens for `pull_request` events with action `opened` and triggers drift analysis.
+
+**Headers**:
+| Header | Description | Required |
+|--------|-------------|----------|
+| `X-GitHub-Event` | GitHub event type (only `pull_request` is processed) | Yes |
+| `X-Hub-Signature-256` | HMAC-SHA256 signature for payload verification | Only if `GITHUB_WEBHOOK_SECRET` is configured |
+
+**Request body**: Raw GitHub webhook JSON payload.
+
+**Response** `202`:
+```json
+{"message": "Documentation drift analysis initiated", "analysis_id": 1}
+```
+
+**Errors**:
+- `401` — Invalid webhook signature (when secret is configured).
+- `400` — Missing repository or PR information in payload.
+
+---
+
+### `POST /api/repo/analyses`
+
+Trigger a full repository documentation audit scan.
+
+**Request body**:
+```json
+{"repository_full_name": "owner/repo"}
+```
+
+| Field | Type | Description | Required |
+|-------|------|-------------|----------|
+| `repository_full_name` | string | Full name of the repository (e.g. `owner/repo`) | Yes |
+
+**Response** `202`:
+```json
+{"message": "Repository audit scan initiated", "analysis_id": 1}
+```
+
+**Errors**:
+- `400` — `repository_full_name` is empty.
+
+---
+
+### `GET /api/analyses`
+
+List all drift analyses with pagination.
+
+**Query parameters**:
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | int | 50 | Maximum number of results to return |
+| `offset` | int | 0 | Number of results to skip |
+
+**Response** `200`: Array of analysis objects (see [Analysis Object](#analysis-object) below).
+
+---
+
+### `GET /api/analyses/{analysis_id}`
+
+Get details of a specific analysis.
+
+**Path parameters**:
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `analysis_id` | int | ID of the analysis record |
+
+**Response** `200`: A single analysis object (see [Analysis Object](#analysis-object) below).
+
+**Errors**:
+- `404` — Analysis not found.
+
+---
+
+### `POST /api/analyses/{analysis_id}/retry`
+
+Retry a failed analysis. Only analyses with status `error` can be retried.
+
+**Path parameters**:
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `analysis_id` | int | ID of the analysis record |
+
+**Response** `202`:
+```json
+{"message": "Analysis queued for retry", "analysis_id": 1}
+```
+
+**Errors**:
+- `404` — Analysis not found.
+- `400` — Analysis is not in `error` status.
+
+---
+
+### `GET /api/statistics`
+
+Dashboard statistics as JSON.
+
+**Response** `200`:
+```json
+{
+  "total_analyses": 0,
+  "completed_analyses": 0,
+  "open_analyses": 0,
+  "unresolved_analyses": 0,
+  "error_count": 0,
+  "error_rate_percentage": 0.0,
+  "timeout_count": 0,
+  "timeout_rate_percentage": 0.0,
+  "total_drift_detected": 0,
+  "total_fix_prs_created": 0,
+  "average_resolution_minutes": 0.0
+}
+```
+
+---
+
+### `GET /dashboard`
+
+Web dashboard UI. Renders an HTML page showing statistics, analysis history, and an audit trigger form.
+
+---
+
+### Analysis Object
+
+All analysis endpoints return objects with these fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | int | Unique analysis ID |
+| `repository_full_name` | string | Repository that was analyzed |
+| `pull_request_number` | int \| null | PR number (if triggered by webhook) |
+| `pull_request_title` | string \| null | PR title |
+| `pull_request_url` | string \| null | PR URL |
+| `trigger_type` | string | One of: `pull_request_webhook`, `repository_audit_scan`, `manual_trigger` |
+| `devin_session_id` | string \| null | Devin session ID |
+| `devin_session_url` | string \| null | Devin session URL |
+| `analysis_status` | string | One of: `pending`, `analyzing`, `no_drift_detected`, `drift_detected`, `fix_pr_created`, `error` |
+| `drift_detected` | bool \| null | Whether drift was found |
+| `drift_summary` | string \| null | Human-readable summary of drift |
+| `endpoints_changed` | array \| null | List of changed endpoints (method, path, change_type, documentation_updated) |
+| `confidence_level` | string \| null | One of: `high`, `medium`, `low` |
+| `fix_pull_request_url` | string \| null | URL of the fix PR (if created) |
+| `error_message` | string \| null | Error description (if status is `error`) |
+| `created_at` | string | ISO 8601 timestamp |
+| `updated_at` | string | ISO 8601 timestamp |
 
 ## Dashboard
 

@@ -1,4 +1,4 @@
-# API Documentation Drift Detector
+# Devin Autodocs
 
 Autonomous API documentation drift detection and remediation powered by [Devin AI](https://devin.ai).
 

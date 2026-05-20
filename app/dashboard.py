@@ -91,13 +91,13 @@ async def retry_failed_analysis(
 async def _compute_dashboard_statistics(database_session: AsyncSession) -> dict:
     completed_statuses = ("no_drift_detected", "fix_pr_created")
     open_statuses = ("pending", "analyzing")
-    unresolved_statuses = ("drift_detected",)
+    needs_attention_statuses = ("drift_detected",)
     error_statuses = ("error",)
 
     total_count = await _count_analyses_by_statuses(database_session, None)
     completed_count = await _count_analyses_by_statuses(database_session, completed_statuses)
     open_count = await _count_analyses_by_statuses(database_session, open_statuses)
-    unresolved_count = await _count_analyses_by_statuses(database_session, unresolved_statuses)
+    needs_attention_count = await _count_analyses_by_statuses(database_session, needs_attention_statuses)
     error_count = await _count_analyses_by_statuses(database_session, error_statuses)
 
     drift_found_count = await _count_where_drift_detected(database_session)
@@ -116,7 +116,7 @@ async def _compute_dashboard_statistics(database_session: AsyncSession) -> dict:
         "total_analyses": total_count,
         "completed_analyses": completed_count,
         "open_analyses": open_count,
-        "unresolved_analyses": unresolved_count,
+        "needs_attention_analyses": needs_attention_count,
         "error_count": error_count,
         "error_rate_percentage": round(error_rate, 1),
         "timeout_count": timeout_count,

@@ -9,6 +9,8 @@ Detects when API endpoints change but documentation doesn't, then automatically 
 ### Flow 1: New Pull Requests
 A GitHub webhook fires on PR creation → the backend creates a Devin session that analyzes the PR diff for API endpoint changes → if docs weren't updated, Devin creates a fix PR.
 
+> **Feedback loop prevention**: PRs opened by the Devin bot (`devin-ai-integration[bot]`) are silently ignored — they are fix PRs, not API changes, so re-analyzing them would cause an infinite loop.
+
 ### Flow 2: Existing Code Audit
 Trigger a full repository scan via the dashboard or API → Devin scans the entire codebase for undocumented or outdated API endpoints → creates a fix PR for all drift found.
 
@@ -88,6 +90,8 @@ GitHub webhook receiver. Listens for `pull_request` events with action `opened` 
 ```json
 {"message": "Documentation drift analysis initiated", "analysis_id": 1}
 ```
+
+PRs where the author is `devin-ai-integration[bot]` are silently skipped (returns `202` with `"Ignoring PR opened by Devin bot"`).
 
 **Errors**:
 - `401` — Invalid webhook signature (when secret is configured).
@@ -176,9 +180,9 @@ Dashboard statistics as JSON.
 ```json
 {
   "total_analyses": 0,
-  "completed_analyses": 0,
+  "all_clear_count": 0,
+  "fix_pr_ready_count": 0,
   "open_analyses": 0,
-  "unresolved_analyses": 0,
   "error_count": 0,
   "error_rate_percentage": 0.0,
   "timeout_count": 0,
@@ -225,9 +229,9 @@ All analysis endpoints return objects with these fields:
 
 The dashboard shows:
 
-- **Stats cards**: Completed | Open | Unresolved | Errors
-- **Failure metrics**: Error rate, timeout rate, average resolution time, drift detected count, fix PRs created
-- **Analysis history**: Table with links to source PRs, Devin sessions, and fix PRs
+- **Stats cards**: All Clear | Fix PR Ready | Devin is working. | Devin needs help
+- **Secondary metrics**: Average resolution time, error rate, total analyses
+- **Analysis history**: Table with links to source PRs, Devin sessions, and fix PRs — filterable by clicking a stat card
 - **Audit trigger**: Form to scan any repository for documentation drift
 
 ## Running Tests

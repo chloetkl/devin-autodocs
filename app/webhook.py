@@ -59,6 +59,11 @@ async def handle_github_webhook_event(
     pull_request_data = event_payload.get("pull_request", {})
     repository_data = event_payload.get("repository", {})
 
+    # Ignore PRs opened by the Devin bot to prevent feedback loops
+    pr_author = pull_request_data.get("user", {}).get("login", "")
+    if pr_author == "devin-ai-integration[bot]":
+        return {"message": "Ignoring PR opened by Devin bot"}
+
     repository_full_name = repository_data.get("full_name", "")
     pull_request_number = pull_request_data.get("number")
     pull_request_title = pull_request_data.get("title", "")

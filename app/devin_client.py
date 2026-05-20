@@ -75,7 +75,7 @@ class DevinApiClient:
                 "Authorization": f"Bearer {self._api_token}",
                 "Content-Type": "application/json",
             },
-            timeout=30.0,
+            timeout=60.0,
         )
 
     async def create_documentation_drift_session(

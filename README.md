@@ -20,7 +20,7 @@ Trigger a full repository scan via the dashboard or API → Devin scans the enti
 
 A hosted instance is available at **https://devin-autodocs.onrender.com/dashboard**.
 
-> **Note**: For Devin to create fix PRs, it needs write access to the target repository. If you haven't granted access yet, use **https://github.com/chloetkl/superset** for testing — Devin already has write access there and fix PRs will be created successfully.
+> **Note**: For Devin to create fix PRs, it needs write access to the target repository: **https://github.com/chloetkl/superset**. **Webhook disabled, contact me if you would like me to reenable it**
 
 ## Prerequisites
 
